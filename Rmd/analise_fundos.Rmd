@@ -1,0 +1,88 @@
+---
+title: "Replicando Dados do Nefin para análise dos fundos"
+author: "Guilherme Jardim Duarte"
+output: html_notebook
+---
+
+Neste relatório, pretendo replicar análise 
+da habilidade fundos de ações 
+como feita pelo NEFIN da USP.
+Uma das últimas análises foi 
+popularizada pelo economista Samy Dana no twitter.
+
+Em primeiro lugar, vale a pena dizer que eu não
+entendo nada de finanças. Não sei nada
+mesmo, não sei conceitos.
+Porém, estudei bastante estatística, e sei bastante 
+de R (e programação em geral). Meu propósito aqui é 
+apenas tentar entender se eu consigo replicar essa análise
+mesmo sabendo pouco de finanças. Ao fazer isso, pretendo
+deixar público o código para que outras pessoas façam a replicação
+para períodos maiores.
+
+
+Bom, vamos ao código. Carregando as bases
+
+```{r}
+dados_fundos <- readRDS('../data/dados_fundos.rds') %>%
+  mutate(DT_COMPTC = lubridate::ymd(DT_COMPTC))
+dados_nefin <- readRDS('../data/dados_nefin.Rds')
+dados_fundos <- inner_join(dados_fundos, dados_nefim, 
+                           by = c("DT_COMPTC" = "date"))
+```
+
+
+
+Calculando o retorno.
+
+```{r}
+dados_fundos <- dados_fundos %>%
+  arrange(DT_COMPTC) %>%
+  group_by(CNPJ_FUNDO) %>%
+  mutate(retorno = (VL_QUOTA - lag(VL_QUOTA))/lag(VL_QUOTA)) %>%
+  ungroup()
+```
+
+Removendo a taxa livre de risco
+
+```{r}
+dados_fundos <- dados_fundos %>%
+  mutate(retorno = retorno - Risk_free)
+```
+
+
+Regressão
+```{r}
+roda_regressao <- safely((. %>%
+  lm(retorno ~ IML + WML + HML + SMB + Rm_minus_Rf, data = .)  %>%
+        summary))
+  
+
+
+retorna_resultados <- function(x, name) { 
+  if (is.null(x)) {
+    NULL
+  } else {
+  tibble( 
+           skill_value = x$coefficients %>% `[`(1,3),
+           p_value = x$coefficients %>% `[`(1,4)
+           ) %>%
+  head(1) 
+  }
+}
+
+resultados <- dados_fundos %>%
+  split(dados_fundos$DENOM_SOCIAL) %>%
+  map(~  .x %>%
+         roda_regressao %>%
+         `$`('result') %>%
+        retorna_resultados()
+    ) %>%
+  bind_rows(.id = "DENOM_SOCIAL") 
+```
+
+
+```{r}
+resultados <- resultados %>%
+  arrange(desc(skill_value))
+```
