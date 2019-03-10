@@ -24,10 +24,12 @@ para períodos maiores.
 Bom, vamos ao código. Carregando as bases
 
 ```{r}
+library(dplyr)
+library(purrr)
 dados_fundos <- readRDS('../data/dados_fundos.rds') %>%
   mutate(DT_COMPTC = lubridate::ymd(DT_COMPTC))
 dados_nefin <- readRDS('../data/dados_nefin.Rds')
-dados_fundos <- inner_join(dados_fundos, dados_nefim, 
+dados_fundos <- inner_join(dados_fundos, dados_nefin, 
                            by = c("DT_COMPTC" = "date"))
 ```
 
@@ -39,7 +41,7 @@ Calculando o retorno.
 dados_fundos <- dados_fundos %>%
   arrange(DT_COMPTC) %>%
   group_by(CNPJ_FUNDO) %>%
-  mutate(retorno = (VL_QUOTA - lag(VL_QUOTA))/lag(VL_QUOTA)) %>%
+  mutate(retorno = (log(VL_QUOTA) - log(lag(VL_QUOTA)))) %>%
   ungroup()
 ```
 
