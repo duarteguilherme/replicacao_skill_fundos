@@ -26,6 +26,8 @@ Bom, vamos ao código. Carregando as bases
 ```{r}
 library(dplyr)
 library(purrr)
+library(sandwich)
+library(lmtest)
 dados_fundos <- readRDS('../data/dados_fundos.rds') %>%
   mutate(DT_COMPTC = lubridate::ymd(DT_COMPTC))
 dados_nefin <- readRDS('../data/dados_nefin.Rds')
@@ -41,7 +43,8 @@ Calculando o retorno.
 dados_fundos <- dados_fundos %>%
   arrange(DT_COMPTC) %>%
   group_by(CNPJ_FUNDO) %>%
-  mutate(retorno = (log(VL_QUOTA) - log(lag(VL_QUOTA)))) %>%
+# Retorno discreto
+    mutate(retorno = (VL_QUOTA - lag(VL_QUOTA))/lag(VL_QUOTA)) %>%
   ungroup()
 ```
 
@@ -55,10 +58,16 @@ dados_fundos <- dados_fundos %>%
 
 Regressão
 ```{r}
-roda_regressao <- safely((. %>%
-  lm(retorno ~ IML + WML + HML + SMB + Rm_minus_Rf, data = .)  %>%
-        summary))
-  
+
+roda_regressao <- safely(
+  function(x) {
+    regressao <- lm(retorno ~ IML + WML + HML + SMB + Rm_minus_Rf, data = x)
+    NW_VCOV <- sandwich::NeweyWest(regressao, 
+              lag = 12)
+    lmtest::coeftest(regressao, vcov = NW_VCOV)
+    
+  }
+)
 
 
 retorna_resultados <- function(x, name) { 
@@ -66,8 +75,8 @@ retorna_resultados <- function(x, name) {
     NULL
   } else {
   tibble( 
-           skill_value = x$coefficients %>% `[`(1,3),
-           p_value = x$coefficients %>% `[`(1,4)
+           skill_value = x %>% `[`(1,3),
+           p_value = x %>% `[`(1,4)
            ) %>%
   head(1) 
   }
