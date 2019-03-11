@@ -28,7 +28,8 @@ fundos <- fundos %>%
   filter(DT_INI_EXERC >= lubridate::dmy('01-03-2018'),
          DT_INI_EXERC < lubridate::dmy('01-03-2019'),
          CLASSE == "Fundo de Ações",
-         SIT == "EM FUNCIONAMENTO NORMAL")
+         SIT == "EM FUNCIONAMENTO NORMAL",
+         VL_PATRIM_LIQ >= 2e7)
 
 datas <- c(
   3:12 %>% 
@@ -47,6 +48,9 @@ dados_fundos <- purrr::map(datas,
 #                                              funs(as.character))
                       }) %>%
   dplyr::bind_rows()
+
+dados_fundos <- dados_fundos %>%
+  filter(NR_COTST >= 20)
     
     
 saveRDS(dados_fundos, "data/dados_fundos.rds")
